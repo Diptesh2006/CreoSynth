@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Content Creation Studio</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #667eea;
+            --primary-dark: #5568d3;
+            --secondary: #764ba2;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+            --text-light: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            font-size: 1.25rem;
+            opacity: 0.95;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .card h2 {
+            margin: 0 0 1.5rem 0;
+            font-size: 1.5rem;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text);
+            font-size: 0.95rem;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.875rem;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: inherit;
+            transition: all 0.2s;
+            background: var(--bg);
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 0.5rem;
+            color: var(--text-light);
+            font-size: 0.875rem;
+        }
+
+        .btn {
+            padding: 0.875rem 1.75rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .projects-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            max-height: 600px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        .projects-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .projects-list::-webkit-scrollbar-track {
+            background: var(--bg);
+            border-radius: 4px;
+        }
+
+        .projects-list::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        .projects-list::-webkit-scrollbar-thumb:hover {
+            background: var(--text-light);
+        }
+
+        .project-item {
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .project-item:hover {
+            border-color: var(--primary);
+            transform: translateX(4px);
+        }
+
+        .project-item.active {
+            border-color: var(--primary);
+            background: #eef2ff;
+        }
+
+        .project-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 0.75rem;
+        }
+
+        .project-name {
+            font-weight: 700;
+            color: var(--text);
+            font-size: 1.1rem;
+            margin: 0;
+        }
+
+        .status-badge {
+            padding: 0.375rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-processing { background: #dbeafe; color: #1e40af; }
+        .status-completed { background: #d1fae5; color: #065f46; }
+        .status-error { background: #fee2e2; color: #991b1b; }
+
+        .project-topic {
+            color: var(--text-light);
+            font-size: 0.875rem;
+            margin: 0.5rem 0 0 0;
+            line-height: 1.5;
+        }
+
+        .workflow-section {
+            margin-top: 2rem;
+        }
+
+        .agent-card {
+            background: var(--bg);
+            border-left: 4px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            transition: all 0.3s;
+        }
+
+        .agent-card.active {
+            background: #eef2ff;
+            border-left-color: var(--primary);
+            box-shadow: var(--shadow);
+        }
+
+        .agent-card.completed {
+            border-left-color: var(--success);
+        }
+
+        .agent-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .agent-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            background: white;
+            box-shadow: var(--shadow);
+        }
+
+        .agent-info h3 {
+            margin: 0;
+            font-size: 1.1rem;
+            color: var(--text);
+        }
+
+        .agent-info p {
+            margin: 0.25rem 0 0 0;
+            font-size: 0.875rem;
+            color: var(--text-light);
+        }
+
+        .agent-output {
+            background: white;
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-top: 1rem;
+            border: 1px solid var(--border);
+        }
+
+        .agent-output h4 {
+            margin: 0 0 0.75rem 0;
+            font-size: 0.875rem;
+            color: var(--text-light);
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .agent-output-content {
+            color: var(--text);
+            line-height: 1.8;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--text-light);
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--text);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: var(--shadow-lg);
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+            max-width: 400px;
+        }
+
+        .toast.success {
+            background: var(--success);
+        }
+
+        .toast.error {
+            background: var(--error);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        .api-key-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .api-key-group input {
+            font-family: 'Courier New', monospace;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .header p {
+                font-size: 1rem;
+            }
+
+            .card {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 AI Content Creation Studio</h1>
+            <p>Powered by CrewAI Multi-Agent System</p>
+        </div>
+
+        <div class="main-content">
+            <div class="card">
+                <h2>📝 Create New Content</h2>
+                <form id="project-form">
+                    <div class="form-group">
+                        <label for="project-name">Project Name (Optional)</label>
+                        <input type="text" id="project-name" placeholder="e.g., Q4 Blog Post">
+                        <small>Give your project a memorable name</small>
+                    </div>
+
+                    <div class="form-group api-key-group">
+                        <label for="api-key">OpenAI API Key *</label>
+                        <input type="password" id="api-key" placeholder="sk-..." required>
+                        <small>Your API key is used only for this request and not stored</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="topic">Blog Topic *</label>
+                        <textarea id="topic" placeholder="e.g., The Future of Agentic AI and How It Will Transform Business" required></textarea>
+                        <small>What should the blog post be about?</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="guidelines">Brand Guidelines *</label>
+                        <textarea id="guidelines" placeholder="e.g., Tone must be optimistic, inspiring, and avoid complex technical jargon. Target audience: young professionals aged 25-35." required></textarea>
+                        <small>Specify tone, style, target audience, and any brand requirements</small>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="submit-btn">
+                        <span id="btn-text">🚀 Generate Content</span>
+                    </button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2>📁 Your Projects</h2>
+                <div id="projects-list" class="projects-list">
+                    <div class="empty-state">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p>No projects yet. Create your first content project!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="workflow-container"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+        let allProjects = [];
+        let selectedProjectId = null;
+        let isProcessing = false;
+
+        // Initialize: Load projects
+        async function initApp() {
+            try {
+                await loadProjects();
+            } catch (error) {
+                console.error('Failed to initialize:', error);
+                showToast('Failed to connect to server. Make sure the backend is running.', 'error');
+            }
+        }
+
+        // Load all projects
+        async function loadProjects() {
+            try {
+                const response = await fetch(`${API_BASE}/projects`);
+                const data = await response.json();
+                if (data.success) {
+                    allProjects = data.projects.sort((a, b) => 
+                        new Date(b.created_at) - new Date(a.created_at)
+                    );
+                    renderProjects();
+                }
+            } catch (error) {
+                console.error('Error loading projects:', error);
+            }
+        }
+
+        // Form submission
+        document.getElementById('project-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (isProcessing) return;
+
+            const projectName = document.getElementById('project-name').value.trim() || 'Untitled Project';
+            const apiKey = document.getElementById('api-key').value.trim();
+            const topic = document.getElementById('topic').value.trim();
+            const guidelines = document.getElementById('guidelines').value.trim();
+
+            if (!apiKey || !topic || !guidelines) {
+                showToast('Please fill in all required fields', 'error');
+                return;
+            }
+
+            const submitBtn = document.getElementById('submit-btn');
+            const btnText = document.getElementById('btn-text');
+            
+            submitBtn.disabled = true;
+            btnText.innerHTML = '<span class="loading-spinner"></span> Generating...';
+            isProcessing = true;
+
+            try {
+                const response = await fetch(`${API_BASE}/projects`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        project_name: projectName,
+                        api_key: apiKey,
+                        topic: topic,
+                        guidelines: guidelines
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast('Content generation started!', 'success');
+                    document.getElementById('project-form').reset();
+                    
+                    // Add project to list immediately
+                    allProjects.unshift(data.project);
+                    renderProjects();
+                    
+                    // Select the new project
+                    selectedProjectId = data.project.id;
+                    renderWorkflow(data.project);
+                    
+                    // Poll for updates
+                    pollProjectStatus(data.project.id);
+                } else {
+                    showToast(data.error || 'Failed to create project', 'error');
+                }
+            } catch (error) {
+                console.error('Error creating project:', error);
+                showToast('Failed to connect to server. Make sure the backend is running on port 5000.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                btnText.textContent = '🚀 Generate Content';
+                isProcessing = false;
+            }
+        });
+
+        // Poll for project status updates
+        async function pollProjectStatus(projectId, maxAttempts = 60) {
+            let attempts = 0;
+            const interval = setInterval(async () => {
+                attempts++;
+                try {
+                    const response = await fetch(`${API_BASE}/projects/${projectId}`);
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        const project = data.project;
+                        const index = allProjects.findIndex(p => p.id === projectId);
+                        if (index !== -1) {
+                            allProjects[index] = project;
+                            renderProjects();
+                            
+                            if (selectedProjectId === projectId) {
+                                renderWorkflow(project);
+                            }
+                        }
+                        
+                        // Stop polling if completed or error
+                        if (project.status === 'completed' || project.status === 'error') {
+                            clearInterval(interval);
+                            if (project.status === 'completed') {
+                                showToast('Content generation completed!', 'success');
+                            } else if (project.status === 'error') {
+                                showToast('Content generation failed. Check the project details.', 'error');
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error polling project:', error);
+                }
+                
+                if (attempts >= maxAttempts) {
+                    clearInterval(interval);
+                }
+            }, 2000); // Poll every 2 seconds
+        }
+
+        // Render projects list
+        function renderProjects() {
+            const container = document.getElementById('projects-list');
+            
+            if (allProjects.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p>No projects yet. Create your first content project!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = allProjects.map(project => `
+                <div class="project-item ${selectedProjectId === project.id ? 'active' : ''}" 
+                     onclick="selectProject('${project.id}')">
+                    <div class="project-header">
+                        <h3 class="project-name">${escapeHtml(project.project_name)}</h3>
+                        <span class="status-badge status-${project.status}">${project.status}</span>
+                    </div>
+                    <p class="project-topic">${escapeHtml(project.topic.substring(0, 100))}${project.topic.length > 100 ? '...' : ''}</p>
+                </div>
+            `).join('');
+        }
+
+        // Select a project
+        function selectProject(projectId) {
+            selectedProjectId = projectId;
+            const project = allProjects.find(p => p.id === projectId);
+            if (project) {
+                renderProjects();
+                renderWorkflow(project);
+            }
+        }
+
+        // Render workflow
+        function renderWorkflow(project) {
+            const container = document.getElementById('workflow-container');
+            
+            const isPending = project.status === 'pending';
+            const isProcessing = project.status === 'processing';
+            const isCompleted = project.status === 'completed';
+            const isError = project.status === 'error';
+
+            const agents = [
+                {
+                    icon: '✍️',
+                    name: 'Creative Writer',
+                    role: 'Content & Copywriting',
+                    active: (isPending || isProcessing) && !project.writer_output,
+                    completed: !!project.writer_output,
+                    output: project.writer_output || ((isPending || isProcessing) ? 'Generating blog post...' : '')
+                },
+                {
+                    icon: '🔍',
+                    name: 'Brand Reviewer',
+                    role: 'Quality Assurance & Compliance',
+                    active: (isPending || isProcessing) && project.writer_output && !project.reviewer_feedback,
+                    completed: !!project.reviewer_feedback,
+                    output: project.reviewer_feedback || ((isPending || isProcessing) && project.writer_output ? 'Reviewing content...' : '')
+                }
+            ];
+
+            container.innerHTML = `
+                <div class="card">
+                    <h2>🔄 Workflow: ${escapeHtml(project.project_name)}</h2>
+                    <div style="margin-bottom: 1rem; padding: 1rem; background: var(--bg); border-radius: 8px;">
+                        <strong>Topic:</strong> ${escapeHtml(project.topic)}<br>
+                        <strong>Guidelines:</strong> ${escapeHtml(project.guidelines)}
+                    </div>
+                    <div class="workflow-section">
+                        ${agents.map(agent => `
+                            <div class="agent-card ${agent.active ? 'active' : ''} ${agent.completed ? 'completed' : ''}">
+                                <div class="agent-header">
+                                    <div class="agent-icon">${agent.icon}</div>
+                                    <div class="agent-info">
+                                        <h3>${agent.name}</h3>
+                                        <p>${agent.role}</p>
+                                    </div>
+                                </div>
+                                ${agent.output ? `
+                                    <div class="agent-output">
+                                        <h4>Output</h4>
+                                        <div class="agent-output-content">${escapeHtml(agent.output)}</div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                    ${isCompleted && project.final_output ? `
+                        <div class="agent-card completed">
+                            <div class="agent-header">
+                                <div class="agent-icon">✅</div>
+                                <div class="agent-info">
+                                    <h3>Final Result</h3>
+                                    <p>Complete output</p>
+                                </div>
+                            </div>
+                            <div class="agent-output">
+                                <h4>Final Content</h4>
+                                <div class="agent-output-content">${escapeHtml(project.final_output)}</div>
+                            </div>
+                        </div>
+                    ` : ''}
+                    ${isError ? `
+                        <div class="agent-card" style="border-left-color: var(--error);">
+                            <div class="agent-header">
+                                <div class="agent-icon">❌</div>
+                                <div class="agent-info">
+                                    <h3>Error</h3>
+                                    <p>Something went wrong</p>
+                                </div>
+                            </div>
+                            <div class="agent-output">
+                                <div class="agent-output-content" style="color: var(--error);">
+                                    ${escapeHtml(project.error_message || 'An error occurred during processing.')}
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        // Utility functions
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => document.body.removeChild(toast), 300);
+            }, 3000);
+        }
+
+        // Make selectProject available globally
+        window.selectProject = selectProject;
+
+        // Initialize app
+        initApp();
+    </script>
+</body>
+</html>
