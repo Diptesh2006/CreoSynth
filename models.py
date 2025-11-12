@@ -1,66 +1,71 @@
-# --- 1. Install Required Libraries ---
-# We install crewai and the official OpenAI library for langchain
-!pip install crewai langchain-openai
+# --- 1) Install Required Libraries (adds litellm!) ---
+!pip install -q -U crewai crewai-tools litellm langchain-google-genai google-generativeai langchain langchain-core
 print("Libraries installed successfully.")
 
-# --- 2. Import Libraries ---
+# --- 2) Imports ---
 import os
 from getpass import getpass
-# V V V THIS IS THE NEW IMPORT V V V
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
+
 from crewai import Agent, Task, Crew, Process
 
-# --- 3. Get API Key ---
-# Ask for the OpenAI API Key
-openai_api_key = getpass("Please enter your OpenAI API Key: ")
-os.environ["OPENAI_API_KEY"] = openai_api_key
+# --- 3) Get API Key ---
+gemini_key = getpass("Please enter your Gemini API Key: ")
+# LiteLLM expects GEMINI_API_KEY, the LangChain integration uses GOOGLE_API_KEY.
+os.environ["GEMINI_API_KEY"] = gemini_key
+os.environ["GOOGLE_API_KEY"] = gemini_key
 
-# --- 4. Main Code Block ---
+# --- 4) Model selection (LiteLLM-style name for CrewAI) ---
+# Options: "gemini/gemini-2.0-flash", "gemini/gemini-1.5-flash", "gemini/gemini-1.5-pro"
+MODEL_ID = "gemini/gemini-2.0-flash"
+
+# --- 5) (Optional) Quick key/model sanity check via LangChain (doesn't require litellm) ---
+llm_ok = False
 try:
-    # --- 4a. Setup the OpenAI LLM ---
-    print("Initializing OpenAI LLM (gpt-4o-mini)...")
-    
-    # We will use 'gpt-4o-mini' as it's a fast, capable, and cost-effective model
-    llm = ChatOpenAI(
-        model="gpt-4o-mini",
-        temperature=0.7,
-        max_tokens=4000
+    print("Initializing Google Gemini LLM for a quick key test...")
+    test_llm = ChatGoogleGenerativeAI(
+        model=MODEL_ID.split("/", 1)[1],  # e.g., "gemini-2.0-flash"
+        temperature=0.2,
+        max_tokens=64,
     )
-    
-    print("OpenAI LLM initialized successfully.")
+    _ = test_llm.invoke("ping")
+    llm_ok = True
+    print("Key validated successfully.")
+except Exception as e:
+    print("\n--- LLM INITIALIZATION / KEY TEST FAILED ---")
+    print(f"Error details: {e}")
+    print("If it's a 404, use a supported model like 'gemini-1.5-flash' or 'gemini-2.0-flash'.")
+    print("If it's a 429/quota error, enable billing or try a lower-cost model.")
+    # We can still proceed; CrewAI+LiteLLM may succeed if the issue was transient.
 
-    # --- 4b. Define Your Agents ---
+# --- 6) Define Agents using LiteLLM model string (no LangChain object passed to CrewAI) ---
+try:
     print("Defining agents...")
-    
     creative_writer = Agent(
         role='Creative Content Writer',
-        goal='To write an engaging, informative, and human-like blog post on a given topic.',
-        backstory=(
-            "You are an expert content creator who specializes in "
-            "technology and culture. You know how to break down complex "
-            "topics into simple, engaging narratives that captivate an audience."
-        ),
-        llm=llm,  # <-- This agent now uses the OpenAI LLM
+        goal='Write an engaging, informative, human-like blog post on a given topic.',
+        backstory="You are an expert content creator who crafts compelling narratives.",
+        llm=MODEL_ID,            # << pass the model string so CrewAI uses LiteLLM
         verbose=True,
-        allow_delegation=False,
     )
 
     brand_reviewer = Agent(
         role='Brand Compliance Reviewer',
-        goal='To review a given piece of content and ensure it strictly adheres to brand guidelines.',
-        backstory=(
-            "You are the guardian of the brand's voice. Your job is to read "
-            "content and check it for tone, style, and accuracy against the "
-            "company's brand profile. You are meticulous and have a keen eye for detail."
-        ),
-        llm=llm,  # <-- This agent also uses the OpenAI LLM
+        goal='Ensure the content strictly adheres to brand guidelines.',
+        backstory="You are the guardian of the brand’s voice—meticulous and consistent.",
+        llm=MODEL_ID,
         verbose=True,
-        allow_delegation=False,
     )
 
-    # --- 4c. Define the Tasks ---
+    compliance_agent = Agent(
+        role='Legal and Ethics Compliance Officer',
+        goal='Final legal/ethical/copyright check with a decisive verdict.',
+        backstory="Detail-oriented compliance expert who gives the final go/no-go.",
+        llm=MODEL_ID,
+        verbose=True,
+    )
+
     print("Defining tasks...")
-    
     write_task = Task(
         description=(
             "Write a 300-word blog post about the topic: '{topic}'. "
@@ -74,19 +79,28 @@ try:
         description=(
             "Review the blog post written by the Creative Writer. "
             "Check it against the following Brand Guidelines: '{guidelines}'. "
-            "Provide a simple 'APPROVED' or 'REJECTED' with feedback for revision."
+            "Provide 'APPROVED' or 'REJECTED' with concise revision notes."
         ),
-        expected_output="A short review, either 'APPROVED' or 'REJECTED' with clear revision notes.",
+        expected_output="A short review: 'APPROVED' or 'REJECTED' with clear notes.",
         agent=brand_reviewer,
         context=[write_task],
     )
 
-    # --- 4d. Create and Run the Crew ---
+    compliance_task = Task(
+        description=(
+            "Perform a final legal and ethical compliance check on the blog post. "
+            "Scan the text for sensitive topics, potential misinformation, "
+            "or copyright red flags. Provide a final 'GO' or 'NO-GO' with a brief justification."
+        ),
+        expected_output="Final verdict: 'GO' or 'NO-GO' with a 1-sentence explanation.",
+        agent=compliance_agent,
+        context=[write_task, review_task],
+    )
+
     print("Assembling and kicking off the crew...")
-    
     my_crew = Crew(
-        agents=[creative_writer, brand_reviewer],
-        tasks=[write_task, review_task],
+        agents=[creative_writer, brand_reviewer, compliance_agent],
+        tasks=[write_task, review_task, compliance_task],
         process=Process.sequential,
         verbose=True
     )
@@ -98,14 +112,14 @@ try:
 
     result = my_crew.kickoff(inputs=task_inputs)
 
-    # --- 4e. Show the Result ---
     print("\n\n--- Hackathon Co-Pilot Run Complete ---")
-    print("Crew's final output:")
+    print("Crew's final output (from Compliance Agent):")
     print(result)
 
 except Exception as e:
-    # --- 4f. Catch All Errors ---
-    print(f"\n--- AN ERROR OCCURRED ---")
+    print("\n--- A CREWAI ERROR OCCURRED ---")
     print(f"Error details: {e}")
-    print("\nThis usually means your OpenAI API Key is invalid or has insufficient credits.")
-    print("Please restart and try again.")
+    print("\nQuick fixes to try:")
+    print("1) Ensure 'litellm' is installed (we installed it above).")
+    print("2) Switch MODEL_ID to 'gemini/gemini-1.5-flash' if 404 or access issues persist.")
+    print("3) If you get 429 errors, enable billing or reduce request rate/content length.")
