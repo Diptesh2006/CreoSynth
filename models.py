@@ -2,27 +2,33 @@
 !pip install -q -U crewai crewai-tools litellm langchain-google-genai google-generativeai langchain langchain-core
 print("Libraries installed successfully.")
 
-# --- 2) Imports ---
 import os
-from getpass import getpass
 from langchain_google_genai import ChatGoogleGenerativeAI
-
 from crewai import Agent, Task, Crew, Process
 
-# --- 3) Get API Key ---
-gemini_key = getpass("Please enter your Gemini API Key: ")
-# LiteLLM expects GEMINI_API_KEY, the LangChain integration uses GOOGLE_API_KEY.
+# --- 1) Configuration: API key source (env preferred) ---
+# Recommended: set GEMINI_API_KEY in the environment.
+# Fallback: replace the placeholder below with your key for quick local testing only.
+HARDCODED_FALLBACK_KEY = "AIzaSyBs2MrjRDDy9nxeaXKU68jTBvET9OpaFIY"
+
+# Try environment first, else fallback to the hard-coded key
+gemini_key = os.environ.get("GEMINI_API_KEY", None)
+if not gemini_key:
+    gemini_key = HARDCODED_FALLBACK_KEY
+
+# Set both variables used by integrations
 os.environ["GEMINI_API_KEY"] = gemini_key
 os.environ["GOOGLE_API_KEY"] = gemini_key
 
-# --- 4) Model selection (LiteLLM-style name for CrewAI) ---
+# --- 2) Model selection (LiteLLM-style name for CrewAI) ---
 # Options: "gemini/gemini-2.0-flash", "gemini/gemini-1.5-flash", "gemini/gemini-1.5-pro"
 MODEL_ID = "gemini/gemini-2.0-flash"
 
-# --- 5) (Optional) Quick key/model sanity check via LangChain (doesn't require litellm) ---
+# --- 3) (Optional) Quick key/model sanity check via LangChain (doesn't require litellm) ---
 llm_ok = False
 try:
     print("Initializing Google Gemini LLM for a quick key test...")
+    # ChatGoogleGenerativeAI expects model name like "gemini-2.0-flash" (without the "gemini/" prefix)
     test_llm = ChatGoogleGenerativeAI(
         model=MODEL_ID.split("/", 1)[1],  # e.g., "gemini-2.0-flash"
         temperature=0.2,
@@ -36,16 +42,16 @@ except Exception as e:
     print(f"Error details: {e}")
     print("If it's a 404, use a supported model like 'gemini-1.5-flash' or 'gemini-2.0-flash'.")
     print("If it's a 429/quota error, enable billing or try a lower-cost model.")
-    # We can still proceed; CrewAI+LiteLLM may succeed if the issue was transient.
+    # We'll still attempt CrewAI usage; some integrations may succeed even if the quick test fails.
 
-# --- 6) Define Agents using LiteLLM model string (no LangChain object passed to CrewAI) ---
+# --- 4) Define Agents using LiteLLM model string (pass model string so CrewAI uses LiteLLM) ---
 try:
     print("Defining agents...")
     creative_writer = Agent(
         role='Creative Content Writer',
         goal='Write an engaging, informative, human-like blog post on a given topic.',
         backstory="You are an expert content creator who crafts compelling narratives.",
-        llm=MODEL_ID,            # << pass the model string so CrewAI uses LiteLLM
+        llm=MODEL_ID,            # pass the model string; CrewAI will use LiteLLM
         verbose=True,
     )
 
@@ -123,3 +129,5 @@ except Exception as e:
     print("1) Ensure 'litellm' is installed (we installed it above).")
     print("2) Switch MODEL_ID to 'gemini/gemini-1.5-flash' if 404 or access issues persist.")
     print("3) If you get 429 errors, enable billing or reduce request rate/content length.")
+
+
