@@ -1,305 +1,203 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 import os
-from crewai import Agent, Task, Crew, Process
-import uuid
-from datetime import datetime
 import traceback
-import threading
+import uvicorn
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from crewai import Agent, Task, Crew, Process
 
-app = Flask(__name__)
-CORS(app)  # Enable CORS for frontend
+# ********************** WARNING **********************
+# This file contains a hardcoded API key. DO NOT commit this file to public repos.
+# Replace the line below with a secure secret retrieval mechanism in production.
+# ********************** WARNING **********************
 
-# Store projects in memory (in production, use a database)
-projects = {}
+# --- Hardcoded API Key (user requested) ---
+os.environ["GOOGLE_API_KEY"] = "AIzaSyBs2MrjRDDy9nxeaXKU68jTBvET9OpaFIY"
+# also set GEMINI_API_KEY for libraries that expect that
+os.environ["GEMINI_API_KEY"] = os.environ["GOOGLE_API_KEY"]
 
-# Choose the LiteLLM-style model string that CrewAI will use.
-# Options you can use: "gemini/gemini-2.0-flash", "gemini/gemini-1.5-flash", "gemini/gemini-1.5-pro"
-# If you hit 404 model-not-found, try a different supported model string.
-MODEL_ID = os.environ.get("MODEL_ID", "gemini/gemini-2.0-flash")
+# --- Model choices (litellm expects provider prefix like 'google/...') ---
+# Primary preferred model (may require billing/permissions)
+MODEL_ID = "google/gemini-2.0-flash"
+# Fallback if primary model not available
+FALLBACK_MODEL_ID = "google/gemini-1.5-flash"
 
+# FastAPI + CORS
+app = FastAPI(title="Creative Co-Pilot Backend")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.route('/api/health', methods=['GET'])
-def health():
-    """Health check endpoint"""
-    return jsonify({"status": "healthy"})
+# Pydantic model for incoming requests
+class CrewInput(BaseModel):
+    topic: str
+    guidelines: str
 
-
-@app.route('/api/projects', methods=['GET'])
-def get_projects():
-    """Get all projects"""
-    return jsonify({
-        "success": True,
-        "projects": list(projects.values())
-    })
-
-
-@app.route('/api/projects', methods=['POST'])
-def create_project():
-    """Create a new project"""
-    try:
-        data = request.json or {}
-        topic = data.get('topic', '').strip()
-        guidelines = data.get('guidelines', '').strip()
-        project_name = data.get('project_name', topic[:50] if topic else 'Untitled Project')
-
-        if not topic:
-            return jsonify({
-                "success": False,
-                "error": "Topic is required"
-            }), 400
-
-        if not guidelines:
-            return jsonify({
-                "success": False,
-                "error": "Brand guidelines are required"
-            }), 400
-
-        # Check for API key
-        api_key = data.get('api_key', '').strip()
-        if not api_key:
-            return jsonify({
-                "success": False,
-                "error": "Gemini / OpenAI API key is required"
-            }), 400
-
-        # Create project
-        project_id = str(uuid.uuid4())
-        project = {
-            "id": project_id,
-            "project_name": project_name,
-            "topic": topic,
-            "guidelines": guidelines,
-            "status": "pending",
-            "writer_output": "",
-            "reviewer_feedback": "",
-            "final_output": "",
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat()
-        }
-
-        projects[project_id] = project
-
-        def process_in_background():
-            try:
-                projects[project_id].update({
-                    "status": "processing",
-                    "updated_at": datetime.now().isoformat()
-                })
-
-                result = process_crewai_project(project_id, topic, guidelines, api_key)
-                projects[project_id].update({
-                    "status": "completed",
-                    "writer_output": result.get("writer_output", ""),
-                    "reviewer_feedback": result.get("reviewer_feedback", ""),
-                    "final_output": result.get("final_output", ""),
-                    "updated_at": datetime.now().isoformat()
-                })
-            except Exception as e:
-                projects[project_id].update({
-                    "status": "error",
-                    "error_message": str(e),
-                    "updated_at": datetime.now().isoformat()
-                })
-
-        # Start processing in background thread
-        thread = threading.Thread(target=process_in_background)
-        thread.daemon = True
-        thread.start()
-
-        return jsonify({
-            "success": True,
-            "project": projects[project_id]
-        })
-
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-
-@app.route('/api/projects/<project_id>', methods=['GET'])
-def get_project(project_id):
-    """Get a specific project"""
-    if project_id not in projects:
-        return jsonify({
-            "success": False,
-            "error": "Project not found"
-        }), 404
-
-    return jsonify({
-        "success": True,
-        "project": projects[project_id]
-    })
-
-
-@app.route('/api/projects/<project_id>', methods=['PUT'])
-def update_project(project_id):
-    """Update a project"""
-    if project_id not in projects:
-        return jsonify({
-            "success": False,
-            "error": "Project not found"
-        }), 404
-
-    data = request.json or {}
-    projects[project_id].update(data)
-    projects[project_id]["updated_at"] = datetime.now().isoformat()
-
-    return jsonify({
-        "success": True,
-        "project": projects[project_id]
-    })
-
-
-def process_crewai_project(project_id, topic, guidelines, api_key):
+def build_crew_and_run(model_id: str, topic: str, guidelines: str):
     """
-    Process a project using CrewAI with LiteLLM-style Gemini model string.
-
-    Important:
-    - This function sets both GEMINI_API_KEY and GOOGLE_API_KEY environment variables
-      (some integrations expect one or the other).
-    - It passes a model string (MODEL_ID) to Agent(..., llm=MODEL_ID) so CrewAI uses LiteLLM.
+    Build agents/tasks, run Crew, and return a dictionary 
+    containing the blog post, review, and compliance verdict.
     """
-    try:
-        # Set API keys for downstream libraries that expect either name
-        os.environ["GEMINI_API_KEY"] = api_key
-        os.environ["GOOGLE_API_KEY"] = api_key
+    # Define Agents (pass model_id string so CrewAI uses litellm/LiteLLM)
+    creative_writer = Agent(
+        role='Creative Content Writer',
+        goal=f'To write an engaging, informative, human-like blog post on the topic: "{topic}".',
+        backstory="You are an expert content creator who crafts compelling narratives.",
+        llm=model_id,
+        verbose=False,
+    )
 
-        # If you want to override the model per-request, you can add that here.
-        model_to_use = MODEL_ID
+    brand_reviewer = Agent(
+        role='Brand Compliance Reviewer',
+        goal='To review the blog post and ensure it strictly adheres to the brand guidelines.',
+        backstory="You are the guardian of the brand's voice—meticulous and consistent.",
+        llm=model_id,
+        verbose=False,
+    )
 
-        # Define Agents using the model string (LiteLLM-style)
-        creative_writer = Agent(
-            role='Creative Content Writer',
-            goal='To write an engaging, informative, and human-like blog post on a given topic.',
-            backstory=(
-                "You are an expert content creator who specializes in "
-                "technology and culture. You know how to break down complex "
-                "topics into simple, engaging narratives that captivate an audience."
-            ),
-            llm=model_to_use,   # pass model string so CrewAI uses LiteLLM
-            verbose=False,
-            allow_delegation=False,
-        )
+    compliance_agent = Agent(
+        role='Legal and Ethics Compliance Officer',
+        goal='To perform a final check on the blog post for legal, ethical, and copyright risks.',
+        backstory="You are a detail-oriented compliance expert who gives a final go/no-go.",
+        llm=model_id,
+        verbose=False,
+    )
 
-        brand_reviewer = Agent(
-            role='Brand Compliance Reviewer',
-            goal='To review a given piece of content and ensure it strictly adheres to brand guidelines.',
-            backstory=(
-                "You are the guardian of the brand's voice. Your job is to read "
-                "content and check it for tone, style, and accuracy against the "
-                "company's brand profile. You are meticulous and have a keen eye for detail."
-            ),
-            llm=model_to_use,
-            verbose=False,
-            allow_delegation=False,
-        )
+    # Tasks
+    write_task = Task(
+        description=(
+            f"Write a 300-word blog post about the topic: '{topic}'. "
+            "The post must be engaging and easy to understand."
+        ),
+        expected_output='A formatted blog post (text) of around 300 words.',
+        agent=creative_writer,
+    )
 
-        compliance_agent = Agent(
-            role='Legal and Ethics Compliance Officer',
-            goal='Perform a final legal/ethical/copyright check with a decisive verdict.',
-            backstory=(
-                "You are a detail-oriented compliance expert. Scan text for legal, ethical, "
-                "and copyright risks and give a final GO / NO-GO."
-            ),
-            llm=model_to_use,
-            verbose=False,
-            allow_delegation=False,
-        )
+    review_task = Task(
+        description=(
+            f"Review the blog post written by the Creative Writer. "
+            f"Check it against the following Brand Guidelines: '{guidelines}'. "
+            "Provide a simple 'APPROVED' or 'REJECTED' with feedback for revision."
+        ),
+        expected_output="A short review, either 'APPROVED' or 'REJECTED' with clear revision notes.",
+        agent=brand_reviewer,
+        context=[write_task],
+    )
 
-        # Define Tasks
-        write_task = Task(
-            description=(
-                f"Write a 300-word blog post about the topic: '{topic}'. "
-                "The post must be engaging and easy to understand."
-            ),
-            expected_output='A formatted blog post (text) of around 300 words.',
-            agent=creative_writer,
-        )
+    compliance_task = Task(
+        description=(
+            "Perform a final legal and ethical compliance check on the blog post. "
+            "Scan the text for any sensitive topics, potential misinformation, "
+            "or copyright red flags. Provide a final 'GO' or 'NO-GO' with a brief justification."
+        ),
+        expected_output="A final 'GO' or 'NO-GO' verdict with a 1-sentence explanation.",
+        agent=compliance_agent,
+        context=[write_task, review_task],
+    )
 
-        review_task = Task(
-            description=(
-                f"Review the blog post written by the Creative Writer. "
-                f"Check it against the following Brand Guidelines: '{guidelines}'. "
-                "Provide a detailed review with either 'APPROVED' or 'REJECTED' status and clear feedback."
-            ),
-            expected_output="A comprehensive review with 'APPROVED' or 'REJECTED' status and clear revision notes.",
-            agent=brand_reviewer,
-            context=[write_task],
-        )
+    my_crew = Crew(
+        agents=[creative_writer, brand_reviewer, compliance_agent],
+        tasks=[write_task, review_task, compliance_task],
+        process=Process.sequential,
+        verbose=True
+    )
 
-        compliance_task = Task(
-            description=(
-                "Perform a final legal and ethical compliance check on the blog post. "
-                "Scan the text for any sensitive topics, potential misinformation, "
-                "or copyright red flags. Provide a final 'GO' or 'NO-GO' with a brief justification."
-            ),
-            expected_output="A final 'GO' or 'NO-GO' verdict with a 1-sentence explanation.",
-            agent=compliance_agent,
-            context=[write_task, review_task],
-        )
+    # kickoff with inputs
+    task_inputs = {
+        "topic": topic,
+        "guidelines": guidelines
+    }
 
-        # Create and Run the Crew
-        my_crew = Crew(
-            agents=[creative_writer, brand_reviewer, compliance_agent],
-            tasks=[write_task, review_task, compliance_task],
-            process=Process.sequential,
-            verbose=False
-        )
+    # Run the crew and get the final output (from compliance task)
+    compliance_verdict = my_crew.kickoff(inputs=task_inputs)
+    
+    # --- THIS IS THE FIX ---
+    # We must explicitly convert all outputs to strings.
+    # In modern crewai, task.output is an object, so we access .raw_output
+    # We use 'str()' as a safe fallback for all versions.
+    
+    def get_raw(output):
+        """Safely extracts the raw string from a TaskOutput object."""
+        if hasattr(output, 'raw_output') and output.raw_output:
+            return str(output.raw_output)
+        return str(output)
 
-        task_inputs = {
-            'topic': topic,
-            'guidelines': guidelines
-        }
+    result = {
+        "blog_post": get_raw(write_task.output),
+        "review_feedback": get_raw(review_task.output),
+        "compliance_verdict": get_raw(compliance_verdict)
+    }
+    
+    return result
 
-        # Kick off CrewAI run (synchronous call here; CrewAI will orchestrate agents)
-        result = my_crew.kickoff(inputs=task_inputs)
+@app.post("/generate")
+async def generate_content(crew_input: CrewInput):
+    # Input validation
+    if not crew_input.topic.strip():
+        raise HTTPException(status_code=400, detail="Topic is required.")
+    if not crew_input.guidelines.strip():
+        raise HTTPException(status_code=400, detail="Guidelines are required.")
 
-        writer_output = ""
-        reviewer_feedback = ""
-        final_output = str(result)
+    # Ensure key present
+    if not os.environ.get("GOOGLE_API_KEY"):
+        raise HTTPException(status_code=500, detail="Google API key not set on server.")
 
-        # Attempt to parse task outputs if available
+    # Try with primary MODEL_ID, fallback to FALLBACK_MODEL_ID on errors like NotFound/BadRequest.
+    try_models = [MODEL_ID, FALLBACK_MODEL_ID]
+    last_exc = None
+
+    for model in try_models:
         try:
-            if hasattr(result, 'tasks_output'):
-                for task_output in result.tasks_output:
-                    text = str(task_output)
-                    # naive checks — adjust as needed to match CrewAI runtime shape
-                    if 'Creative Content Writer' in text or 'Writer' in text:
-                        writer_output = text
-                    elif 'Brand Compliance Reviewer' in text or 'Reviewer' in text:
-                        reviewer_feedback = text
-                    elif 'Legal and Ethics' in text or 'Compliance' in text:
-                        # Could be final verdict from compliance agent
-                        final_output = text
-        except Exception:
-            # fall back to simple splitting if structure is unknown
-            pass
+            # Result is now a dictionary: {blog_post, review_feedback, compliance_verdict}
+            result_object = build_crew_and_run(model, crew_input.topic, crew_input.guidelines)
+            
+            # success
+            return {"success": True, "model_used": model, "result": result_object}
+        
+        except Exception as e:
+            # Inspect common error messages for helpful guidance
+            tb = traceback.format_exc()
+            last_exc = (e, tb)
+            err_text = str(e).lower()
 
-        # If we couldn't extract separately, try a best-effort split of the final output
-        if not writer_output and not reviewer_feedback:
-            parts = final_output.split("Review", 1)
-            if len(parts) > 1:
-                writer_output = parts[0].strip()
-                reviewer_feedback = "Review" + parts[1].strip()
-            else:
-                writer_output = final_output
-                reviewer_feedback = "Review completed. See final output."
+            # If quota/resource-exhausted, return clear message
+            if "resource exhausted" in err_text or "quota" in err_text or "429" in err_text:
+                raise HTTPException(
+                    status_code=503,
+                    detail=(
+                        "Provider quota exhausted or rate-limited. "
+                        "Enable billing or try again later. "
+                        f"Error: {str(e)}"
+                    ),
+                )
 
-        return {
-            "writer_output": writer_output,
-            "reviewer_feedback": reviewer_feedback,
-            "final_output": final_output
-        }
+            # If not found / 404 for model, try fallback model
+            if "not found" in err_text or "404" in err_text or "is not found" in err_text:
+                # try next model in loop
+                continue
 
-    except Exception as e:
-        error_msg = f"Error processing project: {str(e)}\n{traceback.format_exc()}"
-        # Re-raise so the caller/thread can capture and persist error status
-        raise Exception(error_msg)
+            # If litellm provider error, craft suggestion
+            if "provider not provided" in err_text or "llm provider not provided" in err_text:
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        "LLM Provider not provided — the model string must be prefixed "
+                        "with provider (e.g. 'google/gemini-2.0-flash'). "
+                        f"Server error: {str(e)}"
+                    ),
+                )
 
+            # otherwise continue to fallback attempt
+            continue
 
-if __name__ == '__main__':
-    # For local testing only. In production use a proper WSGI server.
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    # If both attempts failed, return last exception
+    exc, tb = last_exc if last_exc else (RuntimeError("Unknown error"), "")
+    raise HTTPException(status_code=500, detail=f"All model attempts failed. Last error: {str(exc)}")
+
+if __name__ == "__main__":
+    print("Starting FastAPI server on http://localhost:8000")
+    uvicorn.run(app, host="0.0.0.0", port=8000)
