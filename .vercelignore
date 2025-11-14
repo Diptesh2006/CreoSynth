@@ -4,31 +4,41 @@ __pycache__/
 *$py.class
 *.so
 .Python
+*.pyc
+*.pyo
+*.pyd
 
 # Virtual environments
 venv/
 env/
 ENV/
 .venv
+.venv*/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-*
 
 # OS
 .DS_Store
 Thumbs.db
+*.log
 
 # Documentation
 *.md
 QUICKSTART.md
 README.md
+docs/
+*.txt
+!requirements.txt
 
 # Scripts
 start.bat
 start.sh
+vercel-build.sh
 
 # Models file (not needed for deployment)
 models.py
@@ -39,4 +49,27 @@ index.html
 # Git
 .git/
 .gitignore
+
+# Test files
+tests/
+test/
+*_test.py
+*_tests.py
+*.test.py
+
+# Examples and demos
+examples/
+example/
+demos/
+demo/
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
 
