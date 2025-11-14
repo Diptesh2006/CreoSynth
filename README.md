@@ -1,4 +1,4 @@
-# AI Content Creation Studio
+# Creosynth
 
 A modern web application powered by CrewAI multi-agent system for automated blog post creation and brand compliance review.
 
