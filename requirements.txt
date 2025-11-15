@@ -1,5 +1,5 @@
 python-dotenv==1.0.0
-pydantic==2.5.0
+pydantic==2.11.9
 crewai==1.4.1
 crewai-tools==1.4.1
 litellm==1.79.3
@@ -10,5 +10,6 @@ uvicorn==0.24.0
 
 
 # plus anything else your project needs
+
 
 
