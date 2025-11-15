@@ -5,12 +5,13 @@ crewai-tools==1.4.1
 litellm==1.79.3
 langchain-google-genai==2.0.10
 google-generativeai==0.8.5
-fastapi==0.104.1
+fastapi==0.121.2
 uvicorn==0.24.0
 anyio==4.5
 
 
 # plus anything else your project needs
+
 
 
 
