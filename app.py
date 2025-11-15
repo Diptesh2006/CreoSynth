@@ -31,6 +31,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+@app.get("/")
+async def root():
+    return {
+        "message": "Creative Co-Pilot Backend API",
+        "status": "running",
+        "endpoints": {
+            "generate": "/generate (POST)",
+            "health": "/health (GET)",
+            "docs": "/docs (GET)"
+        }
+    }
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "service": "Creative Co-Pilot Backend"}
+
 
 # Pydantic model for incoming requests
 class CrewInput(BaseModel):
@@ -198,6 +214,8 @@ async def generate_content(crew_input: CrewInput):
     exc, tb = last_exc if last_exc else (RuntimeError("Unknown error"), "")
     raise HTTPException(status_code=500, detail=f"All model attempts failed. Last error: {str(exc)}")
 
-if __name__ == "__main__":
-    print("Starting FastAPI server on http://localhost:8000")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+if _name_ == "_main_":
+    port = int(os.environ.get("PORT", 8000))
+    print(f"Starting FastAPI server on http://0.0.0.0:{port}")
+    uvicorn.run(app, host="0.0.0.0", port=port) 
+
