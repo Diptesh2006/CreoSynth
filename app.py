@@ -214,8 +214,9 @@ async def generate_content(crew_input: CrewInput):
     exc, tb = last_exc if last_exc else (RuntimeError("Unknown error"), "")
     raise HTTPException(status_code=500, detail=f"All model attempts failed. Last error: {str(exc)}")
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     print(f"Starting FastAPI server on http://0.0.0.0:{port}")
     uvicorn.run(app, host="0.0.0.0", port=port) 
+
 
